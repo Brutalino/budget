@@ -1,72 +1,81 @@
 # Budget Tracker — Fabio
 
 App PWA personale per tracciare entrate, uscite e obiettivi finanziari.
+I dati sono salvati su **Supabase** (database cloud gratuito) con sync tra iPhone e laptop;
+`localStorage` tiene una copia per la lettura offline.
 
-## Setup su GitHub Pages (5 minuti)
+## File del progetto
 
-### 1. Crea il repository
+| File | Ruolo |
+|------|-------|
+| `index.html` | struttura pagina + stili + login |
+| `config.js`  | chiavi Supabase e parametri (stipendio, budget, voci di default) |
+| `db.js`      | layer Supabase (auth, CRUD, cache, migrazione) |
+| `app.js`     | UI, render e azioni |
+| `schema.sql` | tabelle + Row Level Security da eseguire su Supabase |
+
+## Setup Supabase (una tantum)
+
+1. Crea un account gratuito su [supabase.com](https://supabase.com) e un nuovo progetto.
+2. **SQL Editor** → incolla e lancia tutto `schema.sql` (crea tabelle, RLS e policy).
+3. **Authentication → Users → Add user**: crea il tuo utente con email + password
+   (spunta "Auto Confirm User" così puoi accedere subito).
+4. **Project Settings → API**: copia *Project URL* e *anon public key* e incollali in `config.js`:
+   ```js
+   const SUPABASE_URL  = 'https://xxxx.supabase.co';
+   const SUPABASE_ANON_KEY = 'eyJ...';
+   ```
+   > L'anon key è pubblica per design: la sicurezza è garantita da login + Row Level Security.
+
+Al primo accesso, se il database è vuoto, l'app importa automaticamente i dati eventualmente
+presenti nella vecchia versione (localStorage) e crea le voci fisse di default.
+
+## Deploy su GitHub Pages
 
 ```bash
-# Nella cartella del progetto
-git init
 git add .
-git commit -m "init: budget tracker PWA"
-```
-
-### 2. Crea repo su GitHub
-
-Vai su [github.com/new](https://github.com/new), crea un repo **pubblico** chiamato `budget` (o qualsiasi nome).
-
-```bash
-git remote add origin https://github.com/TUO-USERNAME/budget.git
-git branch -M main
-git push -u origin main
-```
-
-### 3. Abilita GitHub Pages
-
-- Vai su `Settings` → `Pages`
-- Source: **Deploy from a branch**
-- Branch: `main` → `/ (root)`
-- Salva
-
-Dopo ~1 minuto il sito è live su `https://TUO-USERNAME.github.io/budget`
-
-### 4. Installa come PWA su iPhone
-
-1. Apri `https://TUO-USERNAME.github.io/budget` in **Safari**
-2. Tocca il pulsante **Condividi** (quadrato con freccia su)
-3. Scorri e tocca **"Aggiungi alla schermata Home"**
-4. Rinomina se vuoi → **Aggiungi**
-
-Ora hai l'icona sulla homescreen e si apre come un'app vera (fullscreen, senza barra Safari).
-
-### Aggiornare le spese fisse o lo stipendio
-
-Apri `index.html` e modifica le costanti in cima allo script:
-
-```js
-const STIPENDIO = 1760;
-const FONDO_MACCHINA = 470;
-const ETF_MENSILE = 162;
-const BUDGET_SFIZI = 130;
-const BUDGET_USCITE = 230;
-const FIXED_TOTAL = 638;
-```
-
-E l'array `FIXED_SPESE` per le singole voci fisse.
-
-Dopo ogni modifica:
-```bash
-git add index.html
-git commit -m "update: nuovo stipendio"
+git commit -m "feat: spese fisse editabili + allocazione risparmio + Supabase"
 git push
 ```
 
-GitHub Pages si aggiorna automaticamente in ~1 minuto.
+- `Settings` → `Pages` → Source: **Deploy from a branch** → `main` / `/ (root)`.
+- Dopo ~1 minuto è live su `https://TUO-USERNAME.github.io/budget`.
+
+### Installa come PWA su iPhone
+1. Apri il sito in **Safari** → **Condividi** → **Aggiungi alla schermata Home**.
+2. Si apre fullscreen come un'app. Accedi una volta per dispositivo.
+
+## Come si usa
+
+- **Dashboard → Allocazione mensile**: tocca una **voce fissa** per modificarla *solo per quel mese*
+  (importo diverso, *salta questo mese*, *pagato*) oppure cambiarne il *default*, *terminarla* da un
+  mese in poi (es. rata GPU finita) o eliminarla. Puoi anche aggiungere nuove voci fisse.
+- **Allocazioni risparmio** (Fondo Miata / ETF): tocca per segnare **versato/non versato** e modificare
+  l'**importo depositato** del mese. Segnare "versato" aggiorna il totale risparmiato dell'obiettivo.
+- **Spese**: registra ogni spesa discrezionale del mese.
+- **Obiettivi**: crea obiettivi e imposta il totale risparmiato.
+- **Storico**: log delle modifiche + pulsante **Esci**.
+
+I valori di stipendio e budget si cambiano a mano in `config.js`. `FIXED_TOTAL` non esiste più: le
+spese fisse del mese sono calcolate dalle voci attive non saltate.
+
+## Fase futura — widget iPhone (aggiungere spese al volo)
+
+Il modello dati è già pronto: il widget/Shortcut iOS può inserire una spesa con una `POST` REST su
+Supabase, senza aprire l'app.
+
+Esempio di **Comando rapido (Shortcut)**:
+1. Azione *Ottieni contenuti da URL*:
+   - URL: `https://xxxx.supabase.co/rest/v1/spese`
+   - Metodo: `POST`
+   - Header: `apikey: <ANON_KEY>`, `Authorization: Bearer <ACCESS_TOKEN>`,
+     `Content-Type: application/json`, `Prefer: return=minimal`
+   - Corpo (JSON): `{ "id": "<timestamp>", "name": "Caffè", "amt": 1.5, "cat": "sfizi", "date": "2026-06-09", "type": "normal" }`
+2. Aggiungi lo Shortcut alla Home o a un widget.
+
+> L'`ACCESS_TOKEN` (JWT del tuo utente) è ottenibile via login REST a `/auth/v1/token?grant_type=password`.
+> Dettagli da definire quando implementeremo questa fase.
 
 ## Note
-
-- I dati sono salvati in **localStorage** del browser — rimangono sul tuo telefono tra le sessioni
-- Se cancelli i dati del browser/Safari, i dati vengono persi → esporta periodicamente dallo storico
-- Per sincronizzazione multi-device (iPhone + laptop) in futuro si può aggiungere un backend o usare un Google Sheet come database
+- Se sei offline, l'app mostra l'ultima copia salvata in cache; le modifiche richiedono connessione.
+- Backup: i dati vivono su Supabase; puoi esportarli dal Table Editor o via SQL quando vuoi.
