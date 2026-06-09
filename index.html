@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Budget">
+<meta name="theme-color" content="#0f172a">
+<title>Budget — Fabio</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root {
+  --bg: #0f172a;
+  --bg2: #1e293b;
+  --bg3: #334155;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f1f5f9;
+  --text2: #94a3b8;
+  --text3: #64748b;
+  --green: #34d399;
+  --green-dim: rgba(52,211,153,0.12);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,0.12);
+  --amber: #fbbf24;
+  --amber-dim: rgba(251,191,36,0.12);
+  --blue: #60a5fa;
+  --blue-dim: rgba(96,165,250,0.12);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  bottom: 0;
+  left: 0; right: 0;
+  background: rgba(15,23,42,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 0.5px solid var(--border2);
+  display: flex;
+  padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+  z-index: 100;
+}
+nav button {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-family: var(--font);
+  font-size: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: color .15s;
+}
+nav button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+nav button.active { color: var(--green); }
+
+/* ── PAGES ── */
+.page { display: none; padding: 16px 16px 100px; max-width: 680px; margin: 0 auto; }
+.page.active { display: block; }
+
+/* ── HEADER ── */
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-top: 8px; }
+.page-header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }
+.month-nav { display: flex; align-items: center; gap: 8px; }
+.month-nav button { background: var(--bg2); border: 0.5px solid var(--border2); color: var(--text2); border-radius: var(--radius-sm); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.month-nav button svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.month-nav .month-label { font-size: 15px; font-weight: 500; min-width: 140px; text-align: center; }
+
+/* ── METRICS GRID ── */
+.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.metric { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px; }
+.metric .lbl { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.metric .val { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+.metric .sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+.val.green { color: var(--green); }
+.val.red { color: var(--red); }
+.val.amber { color: var(--amber); }
+
+/* ── CARDS ── */
+.card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+.card-header { padding: 14px 16px 0; font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+.card-body { padding: 10px 0; }
+
+.row { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 0.5px solid var(--border); }
+.row:last-child { border-bottom: none; }
+.row .name { flex: 1; font-size: 14px; color: var(--text2); }
+.row .name strong { color: var(--text); font-weight: 500; display: block; }
+.row .amt { font-size: 14px; font-weight: 500; }
+.row .amt.neg { color: var(--red); }
+.row .amt.pos { color: var(--green); }
+
+.badge { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 99px; }
+.badge-sfizi { background: var(--amber-dim); color: var(--amber); }
+.badge-uscite { background: var(--green-dim); color: var(--green); }
+.badge-tech { background: var(--blue-dim); color: var(--blue); }
+.badge-alimentare { background: rgba(167,243,208,0.12); color: #6ee7b7; }
+.badge-trasporti { background: rgba(196,181,253,0.12); color: #c4b5fd; }
+.badge-salute { background: rgba(253,164,175,0.12); color: #fda4af; }
+.badge-abbigliamento { background: rgba(203,213,225,0.12); color: #94a3b8; }
+.badge-altro { background: rgba(148,163,184,0.1); color: var(--text3); }
+.badge-oneoff { background: var(--amber-dim); color: var(--amber); }
+.badge-obiettivo { background: var(--green-dim); color: var(--green); }
+.badge-inv { background: var(--blue-dim); color: var(--blue); }
+
+/* ── PROGRESS ── */
+.progress-wrap { padding: 14px 16px; }
+.progress-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--text3); margin-bottom: 8px; }
+.progress-top .p-name { font-size: 14px; font-weight: 500; color: var(--text); }
+.progress-bar { height: 6px; background: var(--bg3); border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 99px; transition: width .4s ease; }
+.progress-bottom { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--text3); }
+
+/* ── FORM ── */
+.form-section { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.form-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.form-row:last-child { margin-bottom: 0; }
+.form-group { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.form-group label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
+input, select, textarea {
+  background: var(--bg3);
+  border: 0.5px solid var(--border2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-family: var(--font);
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  -webkit-appearance: none;
+}
+input:focus, select:focus { border-color: var(--green); }
+select option { background: var(--bg2); }
+
+.btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 12px; background: var(--green); color: #0f172a; border: none; border-radius: var(--radius-sm); font-family: var(--font); font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.btn:active { opacity: 0.8; }
+.btn-ghost { background: var(--bg3); color: var(--text2); }
+
+.del-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; display: flex; align-items: center; }
+.del-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.75; }
+.del-btn:active { color: var(--red); }
+
+/* ── SECTION LABEL ── */
+.section-label { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; padding: 6px 0; margin-bottom: 4px; border-bottom: 0.5px solid var(--border); margin-top: 4px; }
+.section-label:first-child { margin-top: 0; }
+
+/* ── UPDATE SAVED ── */
+.update-row { display: flex; gap: 8px; padding: 12px 16px 14px; }
+.update-row input { flex: 1; }
+.update-row button { background: var(--bg3); border: 0.5px solid var(--border2); color: var(--text2); border-radius: var(--radius-sm); padding: 0 14px; font-family: var(--font); font-size: 13px; cursor: pointer; white-space: nowrap; }
+
+/* ── LOG ── */
+.log-entry { padding: 10px 16px; border-bottom: 0.5px solid var(--border); }
+.log-entry:last-child { border-bottom: none; }
+.log-time { font-size: 11px; color: var(--text3); display: block; margin-bottom: 2px; }
+.log-msg { font-size: 13px; color: var(--text2); }
+
+/* ── EMPTY ── */
+.empty { text-align: center; padding: 28px; font-size: 14px; color: var(--text3); }
+
+/* ── BUDGET BAR ── */
+.budget-bar-wrap { padding: 12px 16px; }
+.budget-bar-lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--text3); margin-bottom: 6px; }
+.budget-bar { height: 5px; background: var(--bg3); border-radius: 99px; overflow: hidden; }
+
+/* ── TOAST ── */
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--bg2); border: 0.5px solid var(--border2); color: var(--text); padding: 10px 18px; border-radius: var(--radius); font-size: 13px; z-index: 999; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; }
+
+@media (min-width: 520px) {
+  .metrics { grid-template-columns: repeat(4, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- PAGES -->
+<div id="page-dashboard" class="page active"></div>
+<div id="page-spese" class="page"></div>
+<div id="page-obiettivi" class="page"></div>
+<div id="page-log" class="page"></div>
+
+<!-- NAV -->
+<nav>
+  <button class="active" onclick="showPage('dashboard')" id="nav-dashboard">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </button>
+  <button onclick="showPage('spese')" id="nav-spese">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Spese
+  </button>
+  <button onclick="showPage('obiettivi')" id="nav-obiettivi">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+    Obiettivi
+  </button>
+  <button onclick="showPage('log')" id="nav-log">
+    <svg viewBox="0 0 24 24"><path d="M9 12h6M9 16h4M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+    Storico
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STIPENDIO = 1760;
+const FONDO_MACCHINA = 470;
+const ETF_MENSILE = 162;
+const BUDGET_SFIZI = 130;
+const BUDGET_USCITE = 230;
+const FIXED_TOTAL = 638;
+
+const FIXED_SPESE = [
+  { name: 'Spesa alimentare', amt: 280, cat: 'alimentare' },
+  { name: 'Bollette', amt: 190, cat: 'altro' },
+  { name: 'Wi-Fi', amt: 27, cat: 'altro' },
+  { name: 'Iliad', amt: 10, cat: 'altro' },
+  { name: 'Claude', amt: 20, cat: 'tech' },
+  { name: 'YouTube', amt: 11, cat: 'tech' },
+  { name: 'Google Cloud', amt: 5, cat: 'tech' },
+  { name: 'Proteine + creatina', amt: 35, cat: 'salute' },
+  { name: 'GPU (rata)', amt: 60, cat: 'tech' },
+];
+
+const CATS = {
+  sfizi: 'Sfizi', uscite: 'Uscite', tech: 'Tech',
+  alimentare: 'Alimentare', trasporti: 'Trasporti',
+  salute: 'Salute', abbigliamento: 'Abbigliamento', altro: 'Altro'
+};
+
+const MONTHS = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+let curYear, curMonth, state;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('budget-fabio-v1');
+    if (raw) state = JSON.parse(raw);
+    else {
+      state = {
+        spese: [],
+        obiettivi: [
+          { id: 1, name: 'Fondo Miata RF', target: 10000, saved: 0, monthly: 470, color: '#34d399' },
+          { id: 2, name: 'ETF S&P 500', target: 38400, saved: 0, monthly: 162, color: '#60a5fa' }
+        ],
+        log: []
+      };
+      saveState();
+    }
+  } catch(e) {
+    state = { spese: [], obiettivi: [], log: [] };
+  }
+}
+
+function saveState() {
+  try { localStorage.setItem('budget-fabio-v1', JSON.stringify(state)); } catch(e) {}
+}
+
+function addLog(msg) {
+  const now = new Date();
+  const time = now.toLocaleDateString('it-IT') + ' ' + now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  state.log.unshift({ msg, time });
+  if (state.log.length > 100) state.log = state.log.slice(0, 100);
+}
+
+function fmt(n) { return '€' + Math.round(n).toLocaleString('it-IT'); }
+function fmtDec(n) { return '€' + Number(n).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+function getKey(y, m) { return y + '-' + String(m).padStart(2, '0'); }
+function getMonthSpese(y, m) { return state.spese.filter(s => s.date && s.date.startsWith(getKey(y, m))); }
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+function badge(cat) {
+  const label = CATS[cat] || 'Altro';
+  return `<span class="badge badge-${cat}">${label}</span>`;
+}
+
+// ── PAGES ──
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  document.getElementById('nav-' + p).classList.add('active');
+  render();
+}
+
+function changeMonth(d) {
+  curMonth += d;
+  if (curMonth < 1) { curMonth = 12; curYear--; }
+  if (curMonth > 12) { curMonth = 1; curYear++; }
+  render();
+}
+
+// ── RENDER ──
+function render() {
+  renderDashboard();
+  renderSpese();
+  renderObiettivi();
+  renderLog();
+}
+
+function monthNavHTML(id) {
+  return `<div class="month-nav">
+    <button onclick="changeMonth(-1)"><svg viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6"/></svg></button>
+    <span class="month-label" id="${id}">${MONTHS[curMonth-1]} ${curYear}</span>
+    <button onclick="changeMonth(1)"><svg viewBox="0 0 24 24"><polyline points="9,18 15,12 9,6"/></svg></button>
+  </div>`;
+}
+
+function renderDashboard() {
+  const spese = getMonthSpese(curYear, curMonth);
+  const discTotal = spese.reduce((a, s) => a + Number(s.amt), 0);
+  const oneoffTotal = spese.filter(s => s.type === 'oneoff').reduce((a, s) => a + Number(s.amt), 0);
+  const totalOut = FIXED_TOTAL + discTotal + FONDO_MACCHINA + ETF_MENSILE;
+  const remaining = STIPENDIO - totalOut;
+  const sfizeSpent = spese.filter(s => s.cat === 'sfizi').reduce((a, s) => a + Number(s.amt), 0);
+  const usciteSpent = spese.filter(s => s.cat === 'uscite').reduce((a, s) => a + Number(s.amt), 0);
+  const sfizPct = Math.min(100, Math.round(sfizeSpent / BUDGET_SFIZI * 100));
+  const uscitePct = Math.min(100, Math.round(usciteSpent / BUDGET_USCITE * 100));
+  const sfizColor = sfizPct > 90 ? '#f87171' : sfizPct > 60 ? '#fbbf24' : '#34d399';
+  const usciteColor = uscitePct > 90 ? '#f87171' : uscitePct > 60 ? '#fbbf24' : '#34d399';
+
+  const miata = state.obiettivi.find(o => o.id === 1);
+  const miataPct = miata ? Math.min(100, Math.round(miata.saved / miata.target * 100)) : 0;
+  const miataMonths = miata && miata.saved < miata.target ? Math.ceil((miata.target - miata.saved) / miata.monthly) : 0;
+
+  document.getElementById('page-dashboard').innerHTML = `
+    <div class="page-header"><h1>Budget</h1>${monthNavHTML('ml-dash')}</div>
+
+    <div class="metrics">
+      <div class="metric"><div class="lbl">Netto</div><div class="val">${fmt(STIPENDIO)}</div><div class="sub">mensile</div></div>
+      <div class="metric"><div class="lbl">Spese fisse</div><div class="val red">${fmt(FIXED_TOTAL)}</div><div class="sub">automatiche</div></div>
+      <div class="metric"><div class="lbl">Discrezionali</div><div class="val ${discTotal > BUDGET_SFIZI + BUDGET_USCITE ? 'red' : discTotal > (BUDGET_SFIZI + BUDGET_USCITE) * 0.75 ? 'amber' : ''}">${fmt(discTotal)}</div><div class="sub">budget ${fmt(BUDGET_SFIZI + BUDGET_USCITE)}</div></div>
+      <div class="metric"><div class="lbl">Residuo</div><div class="val ${remaining >= 0 ? 'green' : 'red'}">${fmt(remaining)}</div><div class="sub">questo mese</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Budget discrezionali</div>
+      <div class="budget-bar-wrap">
+        <div class="budget-bar-lbl"><span>Sfizi</span><span>${fmt(sfizeSpent)} / ${fmt(BUDGET_SFIZI)}</span></div>
+        <div class="budget-bar"><div class="progress-fill" style="width:${sfizPct}%;background:${sfizColor}"></div></div>
+      </div>
+      <div class="budget-bar-wrap" style="padding-top:0">
+        <div class="budget-bar-lbl"><span>Uscite / ragazza</span><span>${fmt(usciteSpent)} / ${fmt(BUDGET_USCITE)}</span></div>
+        <div class="budget-bar"><div class="progress-fill" style="width:${uscitePct}%;background:${usciteColor}"></div></div>
+      </div>
+    </div>
+
+    ${miata ? `<div class="card">
+      <div class="card-header">Fondo Miata RF</div>
+      <div class="progress-wrap">
+        <div class="progress-top"><span class="p-name">${fmt(miata.saved)} di ${fmt(miata.target)}</span><span>${miataPct}%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${miataPct}%;background:var(--green)"></div></div>
+        <div class="progress-bottom"><span>${miataMonths > 0 ? miataMonths + ' mesi al traguardo' : '🎉 Obiettivo raggiunto'}</span><span>${fmt(miata.monthly)}/mese</span></div>
+      </div>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-header">Allocazione mensile</div>
+      <div class="card-body">
+        <div class="section-label" style="padding: 0 16px 6px; margin: 0;">Fisse — automatiche</div>
+        ${FIXED_SPESE.map(f => `<div class="row"><span class="name">${f.name}</span>${badge(f.cat)}<span class="amt neg">${fmt(f.amt)}</span></div>`).join('')}
+        <div class="section-label" style="padding: 8px 16px 6px; margin: 0;">Allocazioni risparmio</div>
+        <div class="row"><span class="name">Fondo Miata RF</span><span class="badge badge-obiettivo">Obiettivo</span><span class="amt pos">${fmt(FONDO_MACCHINA)}</span></div>
+        <div class="row"><span class="name">ETF S&P 500</span><span class="badge badge-inv">Invest.</span><span class="amt pos">${fmt(ETF_MENSILE)}</span></div>
+        ${spese.length > 0 ? `<div class="section-label" style="padding: 8px 16px 6px; margin: 0;">Discrezionali registrate</div>
+        ${spese.map(s => `<div class="row"><span class="name">${s.name}${s.type === 'oneoff' ? ' <span class="badge badge-oneoff">una tantum</span>' : ''}</span>${badge(s.cat)}<span class="amt neg">${fmt(s.amt)}</span></div>`).join('')}` : ''}
+      </div>
+    </div>`;
+}
+
+function renderSpese() {
+  const spese = getMonthSpese(curYear, curMonth);
+  document.getElementById('page-spese').innerHTML = `
+    <div class="page-header"><h1>Spese</h1>${monthNavHTML('ml-spese')}</div>
+
+    <div class="form-section">
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label>Descrizione</label>
+          <input type="text" id="sp-name" placeholder="es. Lego Daytona">
+        </div>
+        <div class="form-group">
+          <label>Importo €</label>
+          <input type="number" id="sp-amt" placeholder="450" min="0" step="0.01" inputmode="decimal">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Categoria</label>
+          <select id="sp-cat">
+            <option value="">Seleziona...</option>
+            ${Object.entries(CATS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="sp-type">
+            <option value="normal">Normale</option>
+            <option value="oneoff">Una tantum</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Data</label>
+          <input type="date" id="sp-date">
+        </div>
+      </div>
+      <button class="btn" onclick="addSpesa()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Aggiungi spesa
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-header" style="padding-bottom:10px">Spese di ${MONTHS[curMonth-1]}</div>
+      <div class="card-body">
+        ${spese.length === 0
+          ? '<div class="empty">Nessuna spesa registrata.<br>Aggiungila sopra.</div>'
+          : spese.map(s => `<div class="row">
+              <span class="name">
+                <strong>${s.name}</strong>
+                ${s.type === 'oneoff' ? '<span class="badge badge-oneoff" style="margin-top:2px">una tantum</span>' : ''}
+              </span>
+              ${badge(s.cat)}
+              <span class="amt neg">${fmt(s.amt)}</span>
+              <button class="del-btn" onclick="deleteSpesa('${s.id}')">
+                <svg viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/><path d="M10,11v6M14,11v6"/><path d="M9,6V4h6v2"/></svg>
+              </button>
+            </div>`).join('')}
+      </div>
+    </div>`;
+
+  const today = new Date().toISOString().split('T')[0];
+  const dateEl = document.getElementById('sp-date');
+  if (dateEl) dateEl.value = today;
+}
+
+function renderObiettivi() {
+  document.getElementById('page-obiettivi').innerHTML = `
+    <div class="page-header"><h1>Obiettivi</h1></div>
+
+    ${state.obiettivi.map(o => {
+      const pct = Math.min(100, Math.round(o.saved / o.target * 100));
+      const months = o.saved >= o.target ? 0 : Math.ceil((o.target - o.saved) / o.monthly);
+      const color = o.color || 'var(--green)';
+      return `<div class="card">
+        <div class="card-body">
+          <div class="progress-wrap">
+            <div class="progress-top">
+              <span class="p-name">${o.name}</span>
+              <button class="del-btn" onclick="deleteObj(${o.id})" style="margin-left:auto">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/><path d="M9,6V4h6v2"/></svg>
+              </button>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:8px">
+              <span>${fmt(o.saved)} di ${fmt(o.target)}</span><span>${pct}%</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+            <div class="progress-bottom">
+              <span>${months > 0 ? months + ' mesi al traguardo' : '🎉 Raggiunto!'}</span>
+              <span>${fmt(o.monthly)}/mese</span>
+            </div>
+          </div>
+          <div class="update-row">
+            <input type="number" placeholder="Aggiorna risparmio €" id="upd-${o.id}" inputmode="decimal">
+            <button onclick="updateSaved(${o.id})">Aggiorna</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+
+    <div class="form-section" style="margin-top:8px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em;font-weight:500">Nuovo obiettivo</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nome</label>
+          <input type="text" id="obj-name" placeholder="es. Viaggio Giappone">
+        </div>
+        <div class="form-group">
+          <label>Target €</label>
+          <input type="number" id="obj-target" placeholder="3000" inputmode="decimal">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Già risparmiato €</label>
+          <input type="number" id="obj-saved" placeholder="0" inputmode="decimal">
+        </div>
+        <div class="form-group">
+          <label>Mensile €</label>
+          <input type="number" id="obj-monthly" placeholder="100" inputmode="decimal">
+        </div>
+      </div>
+      <button class="btn" onclick="addObjective()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Aggiungi obiettivo
+      </button>
+    </div>`;
+}
+
+function renderLog() {
+  document.getElementById('page-log').innerHTML = `
+    <div class="page-header"><h1>Storico</h1></div>
+    <div class="card">
+      <div class="card-body">
+        ${state.log.length === 0
+          ? '<div class="empty">Nessuna modifica ancora.</div>'
+          : state.log.map(l => `<div class="log-entry"><span class="log-time">${l.time}</span><span class="log-msg">${l.msg}</span></div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ── ACTIONS ──
+function addSpesa() {
+  const name = document.getElementById('sp-name').value.trim();
+  const amt = parseFloat(document.getElementById('sp-amt').value);
+  const cat = document.getElementById('sp-cat').value;
+  const date = document.getElementById('sp-date').value;
+  const type = document.getElementById('sp-type').value;
+  if (!name || !amt || !cat || !date) { toast('Compila tutti i campi'); return; }
+  state.spese.push({ id: Date.now().toString(), name, amt, cat, date, type });
+  addLog(`Spesa aggiunta: "${name}" ${fmt(amt)} [${CATS[cat]}]${type === 'oneoff' ? ' — una tantum' : ''}`);
+  saveState(); render();
+  toast('Spesa aggiunta');
+}
+
+function deleteSpesa(id) {
+  const s = state.spese.find(x => x.id === id);
+  if (!s) return;
+  state.spese = state.spese.filter(x => x.id !== id);
+  addLog(`Spesa rimossa: "${s.name}" ${fmt(s.amt)}`);
+  saveState(); render(); toast('Spesa rimossa');
+}
+
+function addObjective() {
+  const name = document.getElementById('obj-name').value.trim();
+  const target = parseFloat(document.getElementById('obj-target').value);
+  const saved = parseFloat(document.getElementById('obj-saved').value) || 0;
+  const monthly = parseFloat(document.getElementById('obj-monthly').value);
+  if (!name || !target || !monthly) { toast('Compila nome, target e mensile'); return; }
+  const colors = ['#34d399','#60a5fa','#fbbf24','#f472b6','#a78bfa'];
+  const color = colors[state.obiettivi.length % colors.length];
+  state.obiettivi.push({ id: Date.now(), name, target, saved, monthly, color });
+  addLog(`Obiettivo aggiunto: "${name}" target ${fmt(target)}`);
+  saveState(); render(); toast('Obiettivo aggiunto');
+}
+
+function updateSaved(id) {
+  const inp = document.getElementById('upd-' + id);
+  const val = parseFloat(inp.value);
+  if (isNaN(val)) { toast('Inserisci un importo'); return; }
+  const obj = state.obiettivi.find(o => o.id === id);
+  if (!obj) return;
+  const old = obj.saved;
+  obj.saved = val;
+  addLog(`Obiettivo "${obj.name}": risparmio aggiornato da ${fmt(old)} a ${fmt(val)}`);
+  saveState(); render(); toast('Aggiornato');
+}
+
+function deleteObj(id) {
+  const o = state.obiettivi.find(x => x.id === id);
+  if (!o || o.id === 1 || o.id === 2) { toast('Obiettivo predefinito non eliminabile'); return; }
+  state.obiettivi = state.obiettivi.filter(x => x.id !== id);
+  addLog(`Obiettivo rimosso: "${o.name}"`);
+  saveState(); render(); toast('Obiettivo rimosso');
+}
+
+// ── INIT ──
+const now = new Date();
+curYear = now.getFullYear();
+curMonth = now.getMonth() + 1;
+loadState();
+render();
+</script>
+</body>
+</html>
