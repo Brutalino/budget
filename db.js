@@ -11,6 +11,9 @@ let state = {
   savingsMonthly: [], // savings_monthly
   spese: [],          // spese
   log: [],            // log
+  groups: [],         // groups (famiglie)
+  categories: [],     // categories (sotto-voci)
+  settings: {},       // settings.data (income, home{...})
 };
 
 let supa = null;
@@ -40,24 +43,35 @@ const DB = {
   cache() { try { localStorage.setItem(CACHE_KEY, JSON.stringify(state)); } catch (e) {} },
   loadCache() {
     try { const r = localStorage.getItem(CACHE_KEY); if (r) state = JSON.parse(r); } catch (e) {}
+    // garantisce che tutte le chiavi esistano anche da cache vecchia
+    for (const k of ['fixed', 'fixedMonthly', 'obiettivi', 'savingsMonthly', 'spese', 'log', 'groups', 'categories']) {
+      if (!Array.isArray(state[k])) state[k] = [];
+    }
+    if (!state.settings || typeof state.settings !== 'object') state.settings = {};
   },
 
   async loadAll() {
-    const [fe, fm, ob, sm, sp, lg] = await Promise.all([
+    const [fe, fm, ob, sm, sp, lg, gr, ca, se] = await Promise.all([
       supa.from('fixed_expenses').select('*').order('sort'),
       supa.from('fixed_monthly').select('*'),
       supa.from('obiettivi').select('*').order('id'),
       supa.from('savings_monthly').select('*'),
       supa.from('spese').select('*').order('date'),
       supa.from('log').select('*').order('ts', { ascending: false }).limit(100),
+      supa.from('groups').select('*').order('sort'),
+      supa.from('categories').select('*').order('sort'),
+      supa.from('settings').select('*').limit(1),
     ]);
-    for (const r of [fe, fm, ob, sm, sp, lg]) if (r.error) throw r.error;
+    for (const r of [fe, fm, ob, sm, sp, lg, gr, ca, se]) if (r.error) throw r.error;
     state.fixed = fe.data;
     state.fixedMonthly = fm.data;
     state.obiettivi = ob.data;
     state.savingsMonthly = sm.data;
     state.spese = sp.data;
     state.log = lg.data;
+    state.groups = gr.data;
+    state.categories = ca.data;
+    state.settings = (se.data && se.data[0]) ? se.data[0].data : {};
     this.cache();
   },
 
@@ -100,6 +114,91 @@ const DB = {
     }
     this.cache();
     return true;
+  },
+
+  // Semina gruppi/categorie/settings quando mancano (anche per account già esistenti).
+  async seedTaxonomyIfNeeded() {
+    if (state.categories.length > 0) return false;
+
+    const { data: gdata, error: gerr } = await supa.from('groups')
+      .insert(DEFAULT_GROUPS.map(g => ({ name: g.name, color: g.color, budget: g.budget, sort: g.sort })))
+      .select();
+    if (gerr) throw gerr;
+    state.groups = gdata.sort((a, b) => a.sort - b.sort);
+
+    const cats = [];
+    let sort = 0;
+    for (const g of DEFAULT_GROUPS) {
+      const grow = state.groups.find(x => x.name === g.name);
+      for (const key of g.cats) {
+        cats.push({
+          key, label: CATS[key] || key, color: CAT_COLORS[key] || '#64748b',
+          group_id: grow ? grow.id : null, sort: sort++,
+          split: SPLIT_CATS.includes(key), active: true
+        });
+      }
+    }
+    const { data: cdata, error: cerr } = await supa.from('categories').insert(cats).select();
+    if (cerr) throw cerr;
+    state.categories = cdata.sort((a, b) => a.sort - b.sort);
+
+    if (!state.settings || Object.keys(state.settings).length === 0) {
+      await this.saveSettings({
+        income: STIPENDIO,
+        home: { metrics: true, budgets: true, miata: true, allocazione: true }
+      });
+    }
+    this.cache();
+    return true;
+  },
+
+  // ── settings ──
+  async saveSettings(data) {
+    const session = await this.session();
+    const { data: row, error } = await supa.from('settings')
+      .upsert({ user_id: session.user.id, data }, { onConflict: 'user_id' }).select().single();
+    if (error) throw error;
+    state.settings = row.data;
+    this.cache(); return row.data;
+  },
+
+  // ── groups ──
+  async addGroup(g) {
+    const { data, error } = await supa.from('groups').insert(g).select().single();
+    if (error) throw error;
+    state.groups.push(data); state.groups.sort((a, b) => a.sort - b.sort); this.cache(); return data;
+  },
+  async updateGroup(id, patch) {
+    const { data, error } = await supa.from('groups').update(patch).eq('id', id).select().single();
+    if (error) throw error;
+    const i = state.groups.findIndex(x => x.id === id); if (i >= 0) state.groups[i] = data;
+    state.groups.sort((a, b) => a.sort - b.sort); this.cache(); return data;
+  },
+  async deleteGroup(id) {
+    const { error } = await supa.from('groups').delete().eq('id', id);
+    if (error) throw error;
+    state.groups = state.groups.filter(x => x.id !== id);
+    state.categories.forEach(c => { if (c.group_id === id) c.group_id = null; });
+    this.cache();
+  },
+
+  // ── categories ──
+  async addCategory(c) {
+    const { data, error } = await supa.from('categories').insert(c).select().single();
+    if (error) throw error;
+    state.categories.push(data); state.categories.sort((a, b) => a.sort - b.sort); this.cache(); return data;
+  },
+  async updateCategory(id, patch) {
+    const { data, error } = await supa.from('categories').update(patch).eq('id', id).select().single();
+    if (error) throw error;
+    const i = state.categories.findIndex(x => x.id === id); if (i >= 0) state.categories[i] = data;
+    state.categories.sort((a, b) => a.sort - b.sort); this.cache(); return data;
+  },
+  async deleteCategory(id) {
+    const { error } = await supa.from('categories').delete().eq('id', id);
+    if (error) throw error;
+    state.categories = state.categories.filter(x => x.id !== id);
+    this.cache();
   },
 
   // ── log ──

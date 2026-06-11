@@ -46,4 +46,26 @@ const CATS = {
   altro: 'Altro'
 };
 
+// Colori di default delle categorie (usati solo per il seed iniziale)
+const CAT_COLORS = {
+  sfizi: '#fbbf24', uscite: '#34d399', signora: '#f472b6', giochi: '#a78bfa',
+  techperso: '#22d3ee', tech: '#60a5fa', alimentare: '#6ee7b7', trasporti: '#c4b5fd',
+  salute: '#fda4af', abbigliamento: '#94a3b8', regalome: '#2dd4bf', regalolei: '#fb7185',
+  regalialtri: '#fb923c', altro: '#64748b'
+};
+
+// Raggruppamento di default: famiglie con budget mensile opzionale.
+// `cats` sono le chiavi (slug) delle categorie in CATS. Usato solo al primo seed.
+const DEFAULT_GROUPS = [
+  { name: 'Sfizi & Svago',  color: '#fbbf24', budget: 130,  sort: 0, cats: ['sfizi', 'giochi'] },
+  { name: 'Uscite insieme', color: '#34d399', budget: 230,  sort: 1, cats: ['uscite', 'signora'] },
+  { name: 'Tech',           color: '#60a5fa', budget: null, sort: 2, cats: ['tech', 'techperso'] },
+  { name: 'Regali',         color: '#fb7185', budget: null, sort: 3, cats: ['regalome', 'regalolei', 'regalialtri'] },
+  { name: 'Necessità',      color: '#6ee7b7', budget: null, sort: 4, cats: ['alimentare', 'trasporti', 'salute', 'abbigliamento'] },
+  { name: 'Altro',          color: '#64748b', budget: null, sort: 5, cats: ['altro'] },
+];
+
+// Categorie che attivano l'opzione "conto diviso a metà"
+const SPLIT_CATS = ['uscite'];
+
 const MONTHS = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];

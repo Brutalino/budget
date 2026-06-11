@@ -5,7 +5,13 @@
 let curYear, curMonth;
 let openFixed = null;     // id voce fissa col pannello aperto
 let openSaving = null;    // id obiettivo col pannello aperto
+let openGroup = null;     // id gruppo col dettaglio aperto in home
+let openAlloc = false;    // card "Allocazione mensile" espansa
 let showAddFixed = false; // form "aggiungi voce fissa" visibile
+let editGroup = null;     // id gruppo in modifica (Impostazioni)
+let editCat = null;       // id categoria in modifica (Impostazioni)
+let showAddGroup = false;
+let showAddCat = false;
 
 // ── helpers ──
 function fmt(n) { return '€' + Math.round(n).toLocaleString('it-IT'); }
@@ -29,9 +35,44 @@ function toast(msg) {
   setTimeout(() => el.classList.remove('show'), 2000);
 }
 
-function badge(cat) {
-  const label = CATS[cat] || 'Altro';
-  return `<span class="badge badge-${cat}">${label}</span>`;
+// ── categorie / gruppi / settings (dato runtime) ──
+function income() { return Number(state.settings && state.settings.income != null ? state.settings.income : STIPENDIO); }
+function homeVis(key) { const h = state.settings && state.settings.home; return !h || h[key] !== false; }
+function catBy(key) { return state.categories.find(c => c.key === key); }
+function catLabel(key) { const c = catBy(key); return c ? c.label : (CATS[key] || 'Altro'); }
+function catColor(key) { const c = catBy(key); return c ? (c.color || '#64748b') : (CAT_COLORS[key] || '#64748b'); }
+function catIsSplit(key) { const c = catBy(key); return c ? !!c.split : SPLIT_CATS.includes(key); }
+function groupBy(id) { return state.groups.find(g => g.id === id); }
+function activeCats() { return state.categories.filter(c => c.active !== false).sort((a, b) => a.sort - b.sort); }
+function groupSpent(groupId, spese) {
+  const keys = state.categories.filter(c => c.group_id === groupId).map(c => c.key);
+  return spese.filter(s => keys.includes(s.cat)).reduce((a, s) => a + Number(s.amt), 0);
+}
+
+function badge(key) {
+  const color = catColor(key);
+  return `<span class="badge" style="background:${color}22;color:${color}">${catLabel(key)}</span>`;
+}
+
+// <option> raggruppate per famiglia, per i select categoria
+function catOptions(selected) {
+  let html = '';
+  const used = new Set();
+  for (const g of state.groups.slice().sort((a, b) => a.sort - b.sort)) {
+    const cats = activeCats().filter(c => c.group_id === g.id);
+    if (!cats.length) continue;
+    html += `<optgroup label="${escA(g.name)}">` +
+      cats.map(c => `<option value="${c.key}"${c.key === selected ? ' selected' : ''}>${escA(c.label)}</option>`).join('') +
+      `</optgroup>`;
+    cats.forEach(c => used.add(c.id));
+  }
+  const orphan = activeCats().filter(c => !used.has(c.id));
+  if (orphan.length) {
+    html += `<optgroup label="Senza gruppo">` +
+      orphan.map(c => `<option value="${c.key}"${c.key === selected ? ' selected' : ''}>${escA(c.label)}</option>`).join('') +
+      `</optgroup>`;
+  }
+  return html;
 }
 
 // ── navigation ──
@@ -39,7 +80,9 @@ function showPage(p) {
   document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  document.getElementById('nav-' + p).classList.add('active');
+  const navBtn = document.getElementById('nav-' + p);
+  if (navBtn) navBtn.classList.add('active');
+  window.scrollTo(0, 0);
   render();
 }
 
@@ -47,7 +90,7 @@ function changeMonth(d) {
   curMonth += d;
   if (curMonth < 1) { curMonth = 12; curYear--; }
   if (curMonth > 12) { curMonth = 1; curYear++; }
-  openFixed = null; openSaving = null;
+  openFixed = null; openSaving = null; openGroup = null;
   render();
 }
 
@@ -63,8 +106,36 @@ function monthNavHTML(id) {
 function render() {
   renderDashboard();
   renderSpese();
+  renderResoconto();
   renderObiettivi();
   renderLog();
+  renderImpostazioni();
+}
+
+function toggleGroup(id) { openGroup = openGroup === id ? null : id; render(); }
+function toggleAlloc() { openAlloc = !openAlloc; render(); }
+
+// barra budget di un gruppo + dettaglio per categoria (drill-down)
+function groupBarHTML(g, spese) {
+  const spent = groupSpent(g.id, spese);
+  const budget = Number(g.budget);
+  const realPct = budget > 0 ? Math.round(spent / budget * 100) : 0;
+  const pct = Math.min(100, realPct);
+  const color = realPct > 90 ? '#f87171' : realPct > 60 ? '#fbbf24' : '#34d399';
+  const open = openGroup === g.id;
+  let html = `<div class="budget-bar-wrap" style="cursor:pointer" onclick="toggleGroup('${g.id}')">
+    <div class="budget-bar-lbl"><span>${escA(g.name)}${realPct > 100 ? ' ⚠️' : ''}</span><span>${fmt(spent)} / ${fmt(budget)}</span></div>
+    <div class="budget-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+  </div>`;
+  if (open) {
+    const rows = state.categories.filter(c => c.group_id === g.id)
+      .map(c => ({ c, amt: spese.filter(s => s.cat === c.key).reduce((a, s) => a + Number(s.amt), 0) }))
+      .filter(r => r.amt > 0).sort((a, b) => b.amt - a.amt);
+    html += `<div class="fx-panel">` + (rows.length
+      ? rows.map(r => `<div class="row" style="border:none;padding:7px 0">${badge(r.c.key)}<span class="name"></span><span class="amt neg">${fmt(r.amt)}</span></div>`).join('')
+      : `<div style="font-size:13px;color:var(--text3)">Ancora nessuna spesa in questo gruppo.</div>`) + `</div>`;
+  }
+  return html;
 }
 
 function fixedRowHTML(f) {
@@ -144,41 +215,39 @@ function renderDashboard() {
     }, 0);
 
   const totalOut = fixedTotal + discTotal + savingsTotal;
-  const remaining = STIPENDIO - totalOut;
-  const sfizeSpent = spese.filter(s => s.cat === 'sfizi').reduce((a, s) => a + Number(s.amt), 0);
-  const usciteSpent = spese.filter(s => s.cat === 'uscite').reduce((a, s) => a + Number(s.amt), 0);
-  const sfizPct = Math.min(100, Math.round(sfizeSpent / BUDGET_SFIZI * 100));
-  const uscitePct = Math.min(100, Math.round(usciteSpent / BUDGET_USCITE * 100));
-  const sfizColor = sfizPct > 90 ? '#f87171' : sfizPct > 60 ? '#fbbf24' : '#34d399';
-  const usciteColor = uscitePct > 90 ? '#f87171' : uscitePct > 60 ? '#fbbf24' : '#34d399';
+  const remaining = income() - totalOut;
+  const budgetedGroups = state.groups.filter(g => g.budget != null).sort((a, b) => a.sort - b.sort);
+  const totalBudget = budgetedGroups.reduce((a, g) => a + Number(g.budget), 0);
 
   const miata = state.obiettivi.find(o => o.id === 1);
   const miataPct = miata ? Math.min(100, Math.round(miata.saved / miata.target * 100)) : 0;
   const miataMonths = miata && miata.saved < miata.target ? Math.ceil((miata.target - miata.saved) / miata.monthly) : 0;
 
   document.getElementById('page-dashboard').innerHTML = `
-    <div class="page-header"><h1>Budget</h1>${monthNavHTML('ml-dash')}</div>
+    <div class="page-header"><h1>Budget</h1>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${monthNavHTML('ml-dash')}
+        <button class="icon-btn" onclick="showPage('impostazioni')" title="Impostazioni">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
 
-    <div class="metrics">
-      <div class="metric"><div class="lbl">Netto</div><div class="val">${fmt(STIPENDIO)}</div><div class="sub">mensile</div></div>
+    ${homeVis('metrics') ? `<div class="metrics">
+      <div class="metric"><div class="lbl">Netto</div><div class="val">${fmt(income())}</div><div class="sub">mensile</div></div>
       <div class="metric"><div class="lbl">Spese fisse</div><div class="val red">${fmt(fixedTotal)}</div><div class="sub">questo mese</div></div>
-      <div class="metric"><div class="lbl">Discrezionali</div><div class="val ${discTotal > BUDGET_SFIZI + BUDGET_USCITE ? 'red' : discTotal > (BUDGET_SFIZI + BUDGET_USCITE) * 0.75 ? 'amber' : ''}">${fmt(discTotal)}</div><div class="sub">budget ${fmt(BUDGET_SFIZI + BUDGET_USCITE)}</div></div>
+      <div class="metric"><div class="lbl">Discrezionali</div><div class="val ${totalBudget && discTotal > totalBudget ? 'red' : totalBudget && discTotal > totalBudget * 0.75 ? 'amber' : ''}">${fmt(discTotal)}</div><div class="sub">${totalBudget ? 'budget ' + fmt(totalBudget) : 'nessun budget'}</div></div>
       <div class="metric"><div class="lbl">Residuo</div><div class="val ${remaining >= 0 ? 'green' : 'red'}">${fmt(remaining)}</div><div class="sub">questo mese</div></div>
-    </div>
+    </div>` : ''}
 
-    <div class="card">
-      <div class="card-header">Budget discrezionali</div>
-      <div class="budget-bar-wrap">
-        <div class="budget-bar-lbl"><span>Sfizi</span><span>${fmt(sfizeSpent)} / ${fmt(BUDGET_SFIZI)}</span></div>
-        <div class="budget-bar"><div class="progress-fill" style="width:${sfizPct}%;background:${sfizColor}"></div></div>
-      </div>
-      <div class="budget-bar-wrap" style="padding-top:0">
-        <div class="budget-bar-lbl"><span>Uscite insieme</span><span>${fmt(usciteSpent)} / ${fmt(BUDGET_USCITE)}</span></div>
-        <div class="budget-bar"><div class="progress-fill" style="width:${uscitePct}%;background:${usciteColor}"></div></div>
-      </div>
-    </div>
+    ${homeVis('budgets') ? `<div class="card">
+      <div class="card-header">Budget per gruppo <span style="text-transform:none;font-weight:400;color:var(--text3)">· tocca per il dettaglio</span></div>
+      ${budgetedGroups.length
+        ? budgetedGroups.map(g => groupBarHTML(g, spese)).join('')
+        : '<div class="empty" style="padding:18px">Nessun budget impostato.<br>Impostazioni → Gruppi.</div>'}
+    </div>` : ''}
 
-    ${miata ? `<div class="card">
+    ${homeVis('miata') && miata ? `<div class="card">
       <div class="card-header">Fondo Miata RF</div>
       <div class="progress-wrap">
         <div class="progress-top"><span class="p-name">${fmt(miata.saved)} di ${fmt(miata.target)}</span><span>${miataPct}%</span></div>
@@ -187,9 +256,12 @@ function renderDashboard() {
       </div>
     </div>` : ''}
 
-    <div class="card">
-      <div class="card-header">Allocazione mensile</div>
-      <div class="card-body">
+    ${homeVis('allocazione') ? `<div class="card">
+      <div class="card-header" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding-bottom:14px" onclick="toggleAlloc()">
+        <span>Allocazione mensile</span>
+        <span style="text-transform:none;font-weight:400;color:var(--text3);font-size:11px">Fisse ${fmt(fixedTotal)} · Risparmio ${fmt(savingsTotal)} ${openAlloc ? '▴' : '▾'}</span>
+      </div>
+      ${openAlloc ? `<div class="card-body" style="padding-top:0">
         <div class="section-label" style="padding: 0 16px 6px; margin: 0;">Fisse — automatiche <span style="text-transform:none;font-weight:400;color:var(--text3)">· tocca per modificare</span></div>
         ${activeFixed.map(fixedRowHTML).join('')}
 
@@ -199,7 +271,7 @@ function renderDashboard() {
             <input type="number" id="nf-amt" inputmode="decimal" placeholder="€" style="max-width:80px">
           </div>
           <div class="fx-row2">
-            <select id="nf-cat">${Object.entries(CATS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+            <select id="nf-cat">${catOptions('')}</select>
             <button class="mini-btn on" onclick="addFixedItem()">Aggiungi</button>
             <button class="mini-btn" onclick="toggleAddFixed()">Annulla</button>
           </div>
@@ -210,11 +282,8 @@ function renderDashboard() {
 
         ${endedFixed.length > 0 ? `<div class="section-label" style="padding: 8px 16px 6px; margin: 0;">Voci terminate</div>
         ${endedFixed.map(f => `<div class="row"><span class="name" style="opacity:.6">${f.name} <span style="font-size:11px">(da ${f.ended_from})</span></span><button class="mini-btn" onclick="riattivaFixed('${f.id}')">Riattiva</button></div>`).join('')}` : ''}
-
-        ${spese.length > 0 ? `<div class="section-label" style="padding: 8px 16px 6px; margin: 0;">Discrezionali registrate</div>
-        ${spese.map(s => `<div class="row"><span class="name">${s.name}${s.type === 'oneoff' ? ' <span class="badge badge-oneoff">una tantum</span>' : ''}</span>${badge(s.cat)}<span class="amt neg">${fmt(s.amt)}</span></div>`).join('')}` : ''}
-      </div>
-    </div>`;
+      </div>` : ''}
+    </div>` : ''}`;
 }
 
 function renderSpese() {
@@ -238,7 +307,7 @@ function renderSpese() {
           <label>Categoria</label>
           <select id="sp-cat" onchange="onCatChange()">
             <option value="">Seleziona...</option>
-            ${Object.entries(CATS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
+            ${catOptions('')}
           </select>
         </div>
         <div class="form-group">
@@ -369,11 +438,186 @@ function renderLog() {
     </div>`;
 }
 
+// ════════════════════════════════════════════════════════════════
+// RESOCONTO — riepilogo del mese
+// ════════════════════════════════════════════════════════════════
+function renderResoconto() {
+  const spese = getMonthSpese(curYear, curMonth);
+  const discTotal = spese.reduce((a, s) => a + Number(s.amt), 0);
+  const fixedTotal = state.fixed.filter(isActive).reduce((a, f) => {
+    const fm = fmFor(f.id);
+    return a + (fm && fm.skipped ? 0 : fixedAmt(f, fm));
+  }, 0);
+  const sav12 = state.obiettivi.filter(o => o.id === 1 || o.id === 2);
+  const savingsPlanned = sav12.reduce((a, o) => { const sm = smFor(o.id); return a + Number(sm && sm.deposited != null ? sm.deposited : o.monthly); }, 0);
+  const savingsVersato = sav12.reduce((a, o) => { const sm = smFor(o.id); return a + (sm && sm.paid ? Number(sm.deposited != null ? sm.deposited : o.monthly) : 0); }, 0);
+  const inc = income();
+  const residuo = inc - fixedTotal - discTotal - savingsPlanned;
+
+  let py = curYear, pm = curMonth - 1;
+  if (pm < 1) { pm = 12; py--; }
+  const prevSpese = getMonthSpese(py, pm);
+  const prevDisc = prevSpese.reduce((a, s) => a + Number(s.amt), 0);
+
+  const arrow = d => d > 0
+    ? `<span style="color:var(--red)">▲ ${fmt(Math.abs(d))}</span>`
+    : d < 0 ? `<span style="color:var(--green)">▼ ${fmt(Math.abs(d))}</span>`
+    : '<span style="color:var(--text3)">=</span>';
+
+  const groupRows = state.groups.slice().sort((a, b) => a.sort - b.sort)
+    .map(g => ({ g, spent: groupSpent(g.id, spese), prev: groupSpent(g.id, prevSpese) }))
+    .filter(r => r.spent > 0 || r.prev > 0 || r.g.budget != null);
+
+  const catRows = state.categories
+    .map(c => ({ c, amt: spese.filter(s => s.cat === c.key).reduce((a, s) => a + Number(s.amt), 0) }))
+    .filter(r => r.amt > 0).sort((a, b) => b.amt - a.amt);
+
+  document.getElementById('page-resoconto').innerHTML = `
+    <div class="page-header"><h1>Resoconto</h1>${monthNavHTML('ml-res')}</div>
+
+    <div class="metrics">
+      <div class="metric"><div class="lbl">Entrate</div><div class="val green">${fmt(inc)}</div></div>
+      <div class="metric"><div class="lbl">Uscite tot.</div><div class="val red">${fmt(fixedTotal + discTotal + savingsPlanned)}</div></div>
+      <div class="metric"><div class="lbl">Risparmio</div><div class="val">${fmt(savingsVersato)}</div><div class="sub">versato / ${fmt(savingsPlanned)}</div></div>
+      <div class="metric"><div class="lbl">Residuo</div><div class="val ${residuo >= 0 ? 'green' : 'red'}">${fmt(residuo)}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Uscite del mese</div>
+      <div class="card-body">
+        <div class="row"><span class="name">Spese fisse</span><span class="amt neg">${fmt(fixedTotal)}</span></div>
+        <div class="row"><span class="name">Discrezionali</span><span class="amt neg">${fmt(discTotal)}</span></div>
+        <div class="row"><span class="name">Risparmio versato</span><span class="amt pos">${fmt(savingsVersato)}</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Per gruppo · confronto ${MONTHS[pm - 1]}</div>
+      <div class="card-body">
+        ${groupRows.length ? groupRows.map(r => `<div class="row">
+          <span class="name"><strong>${escA(r.g.name)}</strong>${r.g.budget != null ? `<span style="font-size:11px;color:var(--text3)">budget ${fmt(r.g.budget)}${r.spent > r.g.budget ? ' · sforato' : ''}</span>` : ''}</span>
+          <span style="font-size:12px">${arrow(r.spent - r.prev)}</span>
+          <span class="amt neg">${fmt(r.spent)}</span>
+        </div>`).join('') : '<div class="empty">Nessuna spesa.</div>'}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Per categoria</div>
+      <div class="card-body">
+        ${catRows.length ? catRows.map(r => `<div class="row">${badge(r.c.key)}<span class="name"></span><span class="amt neg">${fmt(r.amt)}</span></div>`).join('') : '<div class="empty">Nessuna spesa.</div>'}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Discrezionali: ${MONTHS[curMonth - 1]} vs ${MONTHS[pm - 1]}</div>
+      <div class="card-body">
+        <div class="row"><span class="name">${MONTHS[pm - 1]}</span><span class="amt">${fmt(prevDisc)}</span></div>
+        <div class="row"><span class="name">${MONTHS[curMonth - 1]}</span><span class="amt">${fmt(discTotal)}</span></div>
+        <div class="row"><span class="name"><strong>Differenza</strong></span><span style="font-size:13px">${arrow(discTotal - prevDisc)}</span></div>
+      </div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// IMPOSTAZIONI
+// ════════════════════════════════════════════════════════════════
+function groupEditHTML(g) {
+  const open = editGroup === g.id;
+  let html = `<div class="row" style="cursor:pointer" onclick="toggleEditGroup('${g.id}')">
+    <span class="dot" style="background:${g.color || '#64748b'}"></span>
+    <span class="name"><strong>${escA(g.name)}</strong></span>
+    <span class="amt">${g.budget != null ? fmt(g.budget) : '—'}</span>
+  </div>`;
+  if (open) {
+    html += `<div class="fx-panel">
+      <div class="fx-row2"><input type="text" id="g-name-${g.id}" value="${escA(g.name)}" placeholder="Nome"><input type="color" id="g-color-${g.id}" value="${g.color || '#64748b'}" style="max-width:48px;padding:2px;min-width:48px"></div>
+      <div class="fx-row2"><input type="number" id="g-budget-${g.id}" inputmode="decimal" value="${g.budget != null ? g.budget : ''}" placeholder="Budget mensile (vuoto = nessuno)"><button class="mini-btn" onclick="saveGroup('${g.id}')">Salva</button></div>
+      <div class="fx-row2"><button class="mini-btn danger" onclick="deleteGroupItem('${g.id}')">Elimina gruppo</button></div>
+    </div>`;
+  }
+  return html;
+}
+
+function catEditHTML(c) {
+  const open = editCat === c.id;
+  let html = `<div class="row" style="cursor:pointer" onclick="toggleEditCat('${c.id}')">
+    ${badge(c.key)}<span class="name"></span>
+    ${c.split ? '<span style="font-size:11px;color:var(--text3)">÷ conto</span>' : ''}
+  </div>`;
+  if (open) {
+    const groupOpts = state.groups.slice().sort((a, b) => a.sort - b.sort)
+      .map(g => `<option value="${g.id}"${c.group_id === g.id ? ' selected' : ''}>${escA(g.name)}</option>`).join('');
+    html += `<div class="fx-panel">
+      <div class="fx-row2"><input type="text" id="c-label-${c.id}" value="${escA(c.label)}" placeholder="Nome"><input type="color" id="c-color-${c.id}" value="${c.color || '#64748b'}" style="max-width:48px;padding:2px;min-width:48px"></div>
+      <div class="fx-row2"><select id="c-group-${c.id}"><option value="">Senza gruppo</option>${groupOpts}</select></div>
+      <div class="fx-row2">
+        <button class="mini-btn ${c.split ? 'on' : ''}" onclick="toggleCatSplit('${c.id}')">${c.split ? '÷ Conto diviso ON' : '÷ Conto diviso'}</button>
+        <button class="mini-btn" onclick="saveCat('${c.id}')">Salva</button>
+        <button class="mini-btn danger" onclick="deleteCatItem('${c.id}')">Elimina</button>
+      </div>
+    </div>`;
+  }
+  return html;
+}
+
+function renderImpostazioni() {
+  const home = (state.settings && state.settings.home) || {};
+  const vis = k => home[k] !== false;
+  const groupsSorted = state.groups.slice().sort((a, b) => a.sort - b.sort);
+  const orphan = activeCats().filter(c => !c.group_id);
+
+  document.getElementById('page-impostazioni').innerHTML = `
+    <div class="page-header"><h1>Impostazioni</h1><button class="mini-btn" onclick="showPage('dashboard')">Chiudi</button></div>
+
+    <div class="card">
+      <div class="card-header">Sezioni della home</div>
+      <div class="card-body">
+        ${[['metrics', 'Metriche (Netto, Fisse…)'], ['budgets', 'Budget per gruppo'], ['miata', 'Fondo Miata'], ['allocazione', 'Allocazione mensile']]
+          .map(([k, lbl]) => `<div class="row"><span class="name">${lbl}</span><button class="mini-btn ${vis(k) ? 'on' : ''}" onclick="toggleHome('${k}')">${vis(k) ? 'Visibile' : 'Nascosta'}</button></div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Stipendio e risparmio</div>
+      <div class="card-body">
+        <div class="fx-panel">
+          <div class="fx-row2"><span class="name">Stipendio netto</span><input type="number" id="set-income" inputmode="decimal" value="${income()}" style="max-width:110px"><button class="mini-btn" onclick="saveIncome()">Salva</button></div>
+          ${state.obiettivi.filter(o => o.id === 1 || o.id === 2).map(o => `<div class="fx-row2"><span class="name">${escA(o.name)} /mese</span><input type="number" id="set-mon-${o.id}" inputmode="decimal" value="${o.monthly}" style="max-width:110px"><button class="mini-btn" onclick="saveMonthly(${o.id})">Salva</button></div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Gruppi (famiglie) · budget mensile</div>
+      <div class="card-body">
+        ${groupsSorted.map(groupEditHTML).join('')}
+        ${showAddGroup ? `<div class="fx-panel">
+          <div class="fx-row2"><input type="text" id="ng-name" placeholder="Nome gruppo"><input type="color" id="ng-color" value="#60a5fa" style="max-width:48px;padding:2px;min-width:48px"></div>
+          <div class="fx-row2"><input type="number" id="ng-budget" inputmode="decimal" placeholder="Budget mensile (opzionale)"><button class="mini-btn on" onclick="addGroupItem()">Aggiungi</button><button class="mini-btn" onclick="toggleAddGroup()">Annulla</button></div>
+        </div>` : `<div style="padding:8px 16px"><button class="mini-btn" onclick="toggleAddGroup()">+ Nuovo gruppo</button></div>`}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Categorie</div>
+      <div class="card-body">
+        ${groupsSorted.map(g => `<div class="section-label" style="padding:8px 16px 6px;margin:0">${escA(g.name)}</div>
+          ${activeCats().filter(c => c.group_id === g.id).map(catEditHTML).join('') || '<div style="padding:6px 16px;font-size:12px;color:var(--text3)">— nessuna —</div>'}`).join('')}
+        ${orphan.length ? `<div class="section-label" style="padding:8px 16px 6px;margin:0">Senza gruppo</div>${orphan.map(catEditHTML).join('')}` : ''}
+        ${showAddCat ? `<div class="fx-panel">
+          <div class="fx-row2"><input type="text" id="nc-label" placeholder="Nome categoria"><input type="color" id="nc-color" value="#a78bfa" style="max-width:48px;padding:2px;min-width:48px"></div>
+          <div class="fx-row2"><select id="nc-group"><option value="">Senza gruppo</option>${groupsSorted.map(g => `<option value="${g.id}">${escA(g.name)}</option>`).join('')}</select><button class="mini-btn on" onclick="addCatItem()">Aggiungi</button><button class="mini-btn" onclick="toggleAddCat()">Annulla</button></div>
+        </div>` : `<div style="padding:8px 16px"><button class="mini-btn" onclick="toggleAddCat()">+ Nuova categoria</button></div>`}
+      </div>
+    </div>`;
+}
+
 // ── azioni: spese ──
 function onCatChange() {
   const cat = document.getElementById('sp-cat').value;
   const row = document.getElementById('sp-split-row');
-  if (row) row.style.display = cat === 'uscite' ? 'flex' : 'none';
+  if (row) row.style.display = catIsSplit(cat) ? 'flex' : 'none';
 }
 
 async function addSpesa() {
@@ -386,7 +630,7 @@ async function addSpesa() {
 
   let logExtra = '';
   const splitEl = document.getElementById('sp-split');
-  if (cat === 'uscite' && splitEl && splitEl.value === 'half') {
+  if (catIsSplit(cat) && splitEl && splitEl.value === 'half') {
     const total = amt;
     amt = Math.round((total / 2) * 100) / 100;
     name = `${name} (½ conto)`;
@@ -395,7 +639,7 @@ async function addSpesa() {
 
   try {
     await DB.addSpesa({ id: Date.now().toString(), name, amt, cat, date, type });
-    await DB.log(`Spesa aggiunta: "${name}" ${fmt(amt)} [${CATS[cat]}]${type === 'oneoff' ? ' — una tantum' : ''}${logExtra}`);
+    await DB.log(`Spesa aggiunta: "${name}" ${fmt(amt)} [${catLabel(cat)}]${type === 'oneoff' ? ' — una tantum' : ''}${logExtra}`);
     render(); toast('Spesa aggiunta');
   } catch (e) { toast('Errore: ' + e.message); }
 }
@@ -571,6 +815,113 @@ async function deleteObj(id) {
   } catch (e) { toast('Errore: ' + e.message); }
 }
 
+// ── azioni: impostazioni ──
+function slugify(s) {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '').slice(0, 40) || ('cat' + Date.now());
+}
+
+async function toggleHome(k) {
+  const data = JSON.parse(JSON.stringify(state.settings || {}));
+  if (!data.home) data.home = {};
+  data.home[k] = (data.home[k] === false) ? true : false;
+  try { await DB.saveSettings(data); render(); } catch (e) { toast('Errore: ' + e.message); }
+}
+
+async function saveIncome() {
+  const v = parseFloat(document.getElementById('set-income').value);
+  if (isNaN(v)) { toast('Valore non valido'); return; }
+  const data = JSON.parse(JSON.stringify(state.settings || {}));
+  data.income = v;
+  try { await DB.saveSettings(data); await DB.log(`Stipendio aggiornato a ${fmt(v)}`); render(); toast('Salvato'); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
+async function saveMonthly(id) {
+  const v = parseFloat(document.getElementById('set-mon-' + id).value);
+  if (isNaN(v)) { toast('Valore non valido'); return; }
+  const o = state.obiettivi.find(x => x.id === id);
+  try { await DB.updateObiettivo(id, { monthly: v }); await DB.log(`${o.name}: mensile aggiornato a ${fmt(v)}`); render(); toast('Salvato'); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
+// gruppi
+function toggleEditGroup(id) { editGroup = editGroup === id ? null : id; render(); }
+function toggleAddGroup() { showAddGroup = !showAddGroup; render(); }
+
+async function saveGroup(id) {
+  const name = document.getElementById('g-name-' + id).value.trim();
+  const color = document.getElementById('g-color-' + id).value;
+  const bv = document.getElementById('g-budget-' + id).value;
+  const budget = bv === '' ? null : parseFloat(bv);
+  if (!name) { toast('Nome richiesto'); return; }
+  if (bv !== '' && isNaN(budget)) { toast('Budget non valido'); return; }
+  try { await DB.updateGroup(id, { name, color, budget }); render(); toast('Salvato'); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
+async function deleteGroupItem(id) {
+  const g = state.groups.find(x => x.id === id);
+  const hasCats = state.categories.some(c => c.group_id === id);
+  const msg = hasCats
+    ? `Eliminare "${g.name}"? Le sue categorie diventeranno "senza gruppo".`
+    : `Eliminare il gruppo "${g.name}"?`;
+  if (!confirm(msg)) return;
+  try { await DB.deleteGroup(id); await DB.log(`Gruppo eliminato: "${g.name}"`); editGroup = null; render(); toast('Eliminato'); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
+async function addGroupItem() {
+  const name = document.getElementById('ng-name').value.trim();
+  const color = document.getElementById('ng-color').value;
+  const bv = document.getElementById('ng-budget').value;
+  const budget = bv === '' ? null : parseFloat(bv);
+  if (!name) { toast('Nome richiesto'); return; }
+  const sort = state.groups.reduce((m, g) => Math.max(m, g.sort || 0), 0) + 1;
+  try { await DB.addGroup({ name, color, budget, sort }); await DB.log(`Gruppo aggiunto: "${name}"`); showAddGroup = false; render(); toast('Aggiunto'); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
+// categorie
+function toggleEditCat(id) { editCat = editCat === id ? null : id; render(); }
+function toggleAddCat() { showAddCat = !showAddCat; render(); }
+
+async function toggleCatSplit(id) {
+  const c = state.categories.find(x => x.id === id);
+  try { await DB.updateCategory(id, { split: !c.split }); render(); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
+async function saveCat(id) {
+  const label = document.getElementById('c-label-' + id).value.trim();
+  const color = document.getElementById('c-color-' + id).value;
+  const group_id = document.getElementById('c-group-' + id).value || null;
+  if (!label) { toast('Nome richiesto'); return; }
+  try { await DB.updateCategory(id, { label, color, group_id }); render(); toast('Salvato'); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
+async function deleteCatItem(id) {
+  const c = state.categories.find(x => x.id === id);
+  if (state.spese.some(s => s.cat === c.key)) { toast('Categoria in uso: rinominala invece di eliminarla'); return; }
+  if (!confirm(`Eliminare la categoria "${c.label}"?`)) return;
+  try { await DB.deleteCategory(id); await DB.log(`Categoria eliminata: "${c.label}"`); editCat = null; render(); toast('Eliminata'); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
+async function addCatItem() {
+  const label = document.getElementById('nc-label').value.trim();
+  const color = document.getElementById('nc-color').value;
+  const group_id = document.getElementById('nc-group').value || null;
+  if (!label) { toast('Nome richiesto'); return; }
+  let key = slugify(label);
+  const taken = new Set(state.categories.map(c => c.key));
+  if (taken.has(key)) { let i = 2; while (taken.has(key + i)) i++; key = key + i; }
+  const sort = state.categories.reduce((m, c) => Math.max(m, c.sort || 0), 0) + 1;
+  try { await DB.addCategory({ key, label, color, group_id, sort, split: false, active: true }); await DB.log(`Categoria aggiunta: "${label}"`); showAddCat = false; render(); toast('Aggiunta'); }
+  catch (e) { toast('Errore: ' + e.message); }
+}
+
 // ── auth + boot ──
 function showLogin(msg) {
   document.getElementById('login-overlay').style.display = 'flex';
@@ -604,6 +955,7 @@ async function afterLogin() {
   try {
     await DB.loadAll();
     await DB.migrateIfNeeded();
+    await DB.seedTaxonomyIfNeeded();
   } catch (e) {
     DB.loadCache();
     toast('Offline — dati dalla cache');

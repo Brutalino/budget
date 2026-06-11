@@ -215,6 +215,12 @@ select option { background: var(--bg2); }
 .login-box p { font-size: 13px; color: var(--text3); margin-bottom: 20px; }
 .login-box input { margin-bottom: 10px; }
 .login-err { color: var(--red); font-size: 13px; min-height: 18px; margin-top: 8px; }
+
+/* ── ICON BTN / DOT / COLOR ── */
+.icon-btn { background: var(--bg2); border: 0.5px solid var(--border2); color: var(--text2); border-radius: var(--radius-sm); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.icon-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dot { width: 12px; height: 12px; border-radius: 99px; flex-shrink: 0; }
+input[type=color] { padding: 2px; height: 38px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -222,8 +228,10 @@ select option { background: var(--bg2); }
 <!-- PAGES -->
 <div id="page-dashboard" class="page active"></div>
 <div id="page-spese" class="page"></div>
+<div id="page-resoconto" class="page"></div>
 <div id="page-obiettivi" class="page"></div>
 <div id="page-log" class="page"></div>
+<div id="page-impostazioni" class="page"></div>
 
 <!-- NAV -->
 <nav>
@@ -234,6 +242,10 @@ select option { background: var(--bg2); }
   <button onclick="showPage('spese')" id="nav-spese">
     <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Spese
+  </button>
+  <button onclick="showPage('resoconto')" id="nav-resoconto">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Resoconto
   </button>
   <button onclick="showPage('obiettivi')" id="nav-obiettivi">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>

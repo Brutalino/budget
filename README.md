@@ -30,6 +30,11 @@ I dati sono salvati su **Supabase** (database cloud gratuito) con sync tra iPhon
 Al primo accesso, se il database è vuoto, l'app importa automaticamente i dati eventualmente
 presenti nella vecchia versione (localStorage) e crea le voci fisse di default.
 
+> **Aggiornamento (gruppi/categorie/budget):** `schema.sql` è **idempotente** — quando aggiungi
+> funzioni che richiedono nuove tabelle, ri-incolla e rilancia *tutto* `schema.sql` nell'SQL Editor:
+> crea solo ciò che manca (`groups`, `categories`, `settings`) senza toccare i dati esistenti.
+> Al primo avvio dopo l'aggiornamento, gruppi e categorie di default vengono creati in automatico.
+
 ## Deploy su GitHub Pages
 
 ```bash
@@ -52,12 +57,30 @@ git push
   mese in poi (es. rata GPU finita) o eliminarla. Puoi anche aggiungere nuove voci fisse.
 - **Allocazioni risparmio** (Fondo Miata / ETF): tocca per segnare **versato/non versato** e modificare
   l'**importo depositato** del mese. Segnare "versato" aggiorna il totale risparmiato dell'obiettivo.
-- **Spese**: registra ogni spesa discrezionale del mese.
+- **Spese**: registra ogni spesa discrezionale del mese (categoria raggruppata per famiglia).
+- **Resoconto**: riepilogo del mese — entrate/uscite/residuo, speso per gruppo (con confronto col mese
+  precedente), ripartizione per categoria, fisse vs discrezionali, risparmio versato.
 - **Obiettivi**: crea obiettivi e imposta il totale risparmiato.
 - **Storico**: log delle modifiche + pulsante **Esci**.
 
-I valori di stipendio e budget si cambiano a mano in `config.js`. `FIXED_TOTAL` non esiste più: le
-spese fisse del mese sono calcolate dalle voci attive non saltate.
+### Budget a due livelli (gruppi → categorie)
+
+Le categorie appartengono a **gruppi/famiglie** (es. "Sfizi & Svago" contiene *sfizi, giochi*). Il
+**budget mensile si imposta sul gruppo**; in Dashboard la barra mostra speso/budget del gruppo e
+**toccandola** vedi la ripartizione per categoria.
+
+### Impostazioni (icona ingranaggio in alto nella Dashboard)
+
+- **Sezioni della home**: mostra/nascondi metriche, budget, Fondo Miata, allocazione.
+- **Gruppi**: crea/rinomina/colora/elimina e imposta il budget mensile.
+- **Categorie**: crea/rinomina/colora, assegna a un gruppo, attiva il flag *conto diviso* (es. nuova
+  categoria "Viaggi" senza toccare il codice). Una categoria usata da spese esistenti non è eliminabile
+  (rinominala).
+- **Stipendio e risparmio**: modifica stipendio e importi mensili di Fondo Miata/ETF dall'app.
+
+I valori in `config.js` (stipendio, colori, gruppi) servono ora **solo come seed iniziale**: dopo il
+primo avvio tutto si gestisce dall'app. `FIXED_TOTAL` non esiste più — le spese fisse del mese sono
+calcolate dalle voci attive non saltate.
 
 ## Fase futura — widget iPhone (aggiungere spese al volo)
 

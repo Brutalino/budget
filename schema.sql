@@ -70,15 +70,47 @@ create table if not exists log (
   ts timestamptz default now()
 );
 
+-- ── Gruppi / famiglie di categorie (budget mensile opzionale) ──
+create table if not exists groups (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null default auth.uid(),
+  name text not null,
+  color text,
+  sort int default 0,
+  budget numeric            -- limite mensile del gruppo; null = nessun budget
+);
+
+-- ── Categorie (sotto-voci) appartenenti a un gruppo ──
+create table if not exists categories (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null default auth.uid(),
+  key text not null,        -- slug stabile: è ciò che spese.cat continua a salvare
+  label text not null,
+  color text,
+  group_id uuid references groups on delete set null,
+  sort int default 0,
+  split boolean default false,
+  active boolean default true,
+  unique (user_id, key)
+);
+
+-- ── Preferenze utente (riga singola): stipendio + visibilità sezioni home ──
+create table if not exists settings (
+  user_id uuid primary key references auth.users default auth.uid(),
+  data jsonb not null default '{}'
+);
+
 -- ════════════════════════════════════════════════════════════════
--- Row Level Security: ogni utente accede solo alle proprie righe
+-- Row Level Security: ogni utente accede solo alle proprie righe.
+-- Idempotente: si può rilanciare tutto lo schema senza errori.
 -- ════════════════════════════════════════════════════════════════
 do $$
 declare t text;
 begin
-  foreach t in array array['fixed_expenses','fixed_monthly','obiettivi','savings_monthly','spese','log']
+  foreach t in array array['fixed_expenses','fixed_monthly','obiettivi','savings_monthly','spese','log','groups','categories','settings']
   loop
     execute format('alter table %I enable row level security;', t);
+    execute format('drop policy if exists "own rows %1$s" on %1$I;', t);
     execute format($p$
       create policy "own rows %1$s" on %1$I
       for all
