@@ -40,7 +40,7 @@ function income() { return Number(state.settings && state.settings.income != nul
 function homeVis(key) { const h = state.settings && state.settings.home; return !h || h[key] !== false; }
 function catBy(key) { return state.categories.find(c => c.key === key); }
 function catLabel(key) { const c = catBy(key); return c ? c.label : (CATS[key] || 'Altro'); }
-function catColor(key) { const c = catBy(key); return c ? (c.color || '#64748b') : (CAT_COLORS[key] || '#64748b'); }
+function catColor(key) { const c = catBy(key); return c ? (c.color || '#8A7355') : (CAT_COLORS[key] || '#8A7355'); }
 function catIsSplit(key) { const c = catBy(key); return c ? !!c.split : SPLIT_CATS.includes(key); }
 function groupBy(id) { return state.groups.find(g => g.id === id); }
 function activeCats() { return state.categories.filter(c => c.active !== false).sort((a, b) => a.sort - b.sort); }
@@ -121,7 +121,7 @@ function groupBarHTML(g, spese) {
   const budget = Number(g.budget);
   const realPct = budget > 0 ? Math.round(spent / budget * 100) : 0;
   const pct = Math.min(100, realPct);
-  const color = realPct > 90 ? '#f87171' : realPct > 60 ? '#fbbf24' : '#34d399';
+  const color = realPct > 90 ? 'var(--red)' : realPct > 60 ? 'var(--amber)' : 'var(--green)';
   const open = openGroup === g.id;
   let html = `<div class="budget-bar-wrap" style="cursor:pointer" onclick="toggleGroup('${g.id}')">
     <div class="budget-bar-lbl"><span>${escA(g.name)}${realPct > 100 ? ' ⚠️' : ''}</span><span>${fmt(spent)} / ${fmt(budget)}</span></div>
@@ -259,9 +259,9 @@ function renderDashboard() {
     ${homeVis('allocazione') ? `<div class="card">
       <div class="card-header" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding-bottom:14px" onclick="toggleAlloc()">
         <span>Allocazione mensile</span>
-        <span style="text-transform:none;font-weight:400;color:var(--text3);font-size:11px">Fisse ${fmt(fixedTotal)} · Risparmio ${fmt(savingsTotal)} ${openAlloc ? '▴' : '▾'}</span>
+        <span style="text-transform:none;font-weight:400;color:var(--text3);font-size:11px">Fisse ${fmt(fixedTotal)} · Risparmio ${fmt(savingsTotal)} <span class="alloc-caret ${openAlloc ? 'open' : ''}">▾</span></span>
       </div>
-      ${openAlloc ? `<div class="card-body" style="padding-top:0">
+      ${openAlloc ? `<div class="card-body alloc-unfold" style="padding-top:0">
         <div class="section-label" style="padding: 0 16px 6px; margin: 0;">Fisse — automatiche <span style="text-transform:none;font-weight:400;color:var(--text3)">· tocca per modificare</span></div>
         ${activeFixed.map(fixedRowHTML).join('')}
 
@@ -525,13 +525,13 @@ function renderResoconto() {
 function groupEditHTML(g) {
   const open = editGroup === g.id;
   let html = `<div class="row" style="cursor:pointer" onclick="toggleEditGroup('${g.id}')">
-    <span class="dot" style="background:${g.color || '#64748b'}"></span>
+    <span class="dot" style="background:${g.color || '#8A7355'}"></span>
     <span class="name"><strong>${escA(g.name)}</strong></span>
     <span class="amt">${g.budget != null ? fmt(g.budget) : '—'}</span>
   </div>`;
   if (open) {
     html += `<div class="fx-panel">
-      <div class="fx-row2"><input type="text" id="g-name-${g.id}" value="${escA(g.name)}" placeholder="Nome"><input type="color" id="g-color-${g.id}" value="${g.color || '#64748b'}" style="max-width:48px;padding:2px;min-width:48px"></div>
+      <div class="fx-row2"><input type="text" id="g-name-${g.id}" value="${escA(g.name)}" placeholder="Nome"><input type="color" id="g-color-${g.id}" value="${g.color || '#8A7355'}" style="max-width:48px;padding:2px;min-width:48px"></div>
       <div class="fx-row2"><input type="number" id="g-budget-${g.id}" inputmode="decimal" value="${g.budget != null ? g.budget : ''}" placeholder="Budget mensile (vuoto = nessuno)"><button class="mini-btn" onclick="saveGroup('${g.id}')">Salva</button></div>
       <div class="fx-row2"><button class="mini-btn danger" onclick="deleteGroupItem('${g.id}')">Elimina gruppo</button></div>
     </div>`;
@@ -549,7 +549,7 @@ function catEditHTML(c) {
     const groupOpts = state.groups.slice().sort((a, b) => a.sort - b.sort)
       .map(g => `<option value="${g.id}"${c.group_id === g.id ? ' selected' : ''}>${escA(g.name)}</option>`).join('');
     html += `<div class="fx-panel">
-      <div class="fx-row2"><input type="text" id="c-label-${c.id}" value="${escA(c.label)}" placeholder="Nome"><input type="color" id="c-color-${c.id}" value="${c.color || '#64748b'}" style="max-width:48px;padding:2px;min-width:48px"></div>
+      <div class="fx-row2"><input type="text" id="c-label-${c.id}" value="${escA(c.label)}" placeholder="Nome"><input type="color" id="c-color-${c.id}" value="${c.color || '#8A7355'}" style="max-width:48px;padding:2px;min-width:48px"></div>
       <div class="fx-row2"><select id="c-group-${c.id}"><option value="">Senza gruppo</option>${groupOpts}</select></div>
       <div class="fx-row2">
         <button class="mini-btn ${c.split ? 'on' : ''}" onclick="toggleCatSplit('${c.id}')">${c.split ? '÷ Conto diviso ON' : '÷ Conto diviso'}</button>
@@ -574,7 +574,7 @@ function renderImpostazioni() {
       <div class="card-header">Sezioni della home</div>
       <div class="card-body">
         ${[['metrics', 'Metriche (Netto, Fisse…)'], ['budgets', 'Budget per gruppo'], ['miata', 'Fondo Miata'], ['allocazione', 'Allocazione mensile']]
-          .map(([k, lbl]) => `<div class="row"><span class="name">${lbl}</span><button class="mini-btn ${vis(k) ? 'on' : ''}" onclick="toggleHome('${k}')">${vis(k) ? 'Visibile' : 'Nascosta'}</button></div>`).join('')}
+          .map(([k, lbl]) => `<div class="row"><span class="name">${lbl}</span><label class="switch"><input type="checkbox" ${vis(k) ? 'checked' : ''} onchange="setHome('${k}', this.checked)"><span class="slider"></span></label></div>`).join('')}
       </div>
     </div>
 
@@ -593,7 +593,7 @@ function renderImpostazioni() {
       <div class="card-body">
         ${groupsSorted.map(groupEditHTML).join('')}
         ${showAddGroup ? `<div class="fx-panel">
-          <div class="fx-row2"><input type="text" id="ng-name" placeholder="Nome gruppo"><input type="color" id="ng-color" value="#60a5fa" style="max-width:48px;padding:2px;min-width:48px"></div>
+          <div class="fx-row2"><input type="text" id="ng-name" placeholder="Nome gruppo"><input type="color" id="ng-color" value="#C05800" style="max-width:48px;padding:2px;min-width:48px"></div>
           <div class="fx-row2"><input type="number" id="ng-budget" inputmode="decimal" placeholder="Budget mensile (opzionale)"><button class="mini-btn on" onclick="addGroupItem()">Aggiungi</button><button class="mini-btn" onclick="toggleAddGroup()">Annulla</button></div>
         </div>` : `<div style="padding:8px 16px"><button class="mini-btn" onclick="toggleAddGroup()">+ Nuovo gruppo</button></div>`}
       </div>
@@ -606,7 +606,7 @@ function renderImpostazioni() {
           ${activeCats().filter(c => c.group_id === g.id).map(catEditHTML).join('') || '<div style="padding:6px 16px;font-size:12px;color:var(--text3)">— nessuna —</div>'}`).join('')}
         ${orphan.length ? `<div class="section-label" style="padding:8px 16px 6px;margin:0">Senza gruppo</div>${orphan.map(catEditHTML).join('')}` : ''}
         ${showAddCat ? `<div class="fx-panel">
-          <div class="fx-row2"><input type="text" id="nc-label" placeholder="Nome categoria"><input type="color" id="nc-color" value="#a78bfa" style="max-width:48px;padding:2px;min-width:48px"></div>
+          <div class="fx-row2"><input type="text" id="nc-label" placeholder="Nome categoria"><input type="color" id="nc-color" value="#9CB36B" style="max-width:48px;padding:2px;min-width:48px"></div>
           <div class="fx-row2"><select id="nc-group"><option value="">Senza gruppo</option>${groupsSorted.map(g => `<option value="${g.id}">${escA(g.name)}</option>`).join('')}</select><button class="mini-btn on" onclick="addCatItem()">Aggiungi</button><button class="mini-btn" onclick="toggleAddCat()">Annulla</button></div>
         </div>` : `<div style="padding:8px 16px"><button class="mini-btn" onclick="toggleAddCat()">+ Nuova categoria</button></div>`}
       </div>
@@ -781,7 +781,7 @@ async function addObjective() {
   const saved = parseFloat(document.getElementById('obj-saved').value) || 0;
   const monthly = parseFloat(document.getElementById('obj-monthly').value);
   if (!name || !target || !monthly) { toast('Compila nome, target e mensile'); return; }
-  const colors = ['#34d399', '#60a5fa', '#fbbf24', '#f472b6', '#a78bfa'];
+  const colors = ['#C05800', '#9CB36B', '#E0922E', '#D2603A', '#A8743C'];
   const color = colors[state.obiettivi.length % colors.length];
   try {
     await DB.addObiettivo({ id: Date.now(), name, target, saved, monthly, color });
@@ -821,11 +821,14 @@ function slugify(s) {
     .replace(/[^a-z0-9]+/g, '').slice(0, 40) || ('cat' + Date.now());
 }
 
-async function toggleHome(k) {
+async function setHome(k, visible) {
   const data = JSON.parse(JSON.stringify(state.settings || {}));
   if (!data.home) data.home = {};
-  data.home[k] = (data.home[k] === false) ? true : false;
-  try { await DB.saveSettings(data); render(); } catch (e) { toast('Errore: ' + e.message); }
+  data.home[k] = !!visible;
+  try {
+    await DB.saveSettings(data);
+    renderDashboard(); // aggiorna SOLO la home, lasciando intatta la pagina Impostazioni
+  } catch (e) { toast('Errore: ' + e.message); }
 }
 
 async function saveIncome() {
